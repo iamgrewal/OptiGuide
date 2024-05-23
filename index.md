@@ -99,6 +99,207 @@ README.md
 1. **Set Up Local Environment**: Follow the implementation steps to set up the code locally.
 2. **Run and Explore**: Run the application to understand its functionality better.
 3. **Contribute**: Make necessary changes or enhancements based on your requirements.
+### Setting Up the Environment and Starting the Project
+
+To set up the environment and start the OptiGuide project, follow these steps:
+
+#### Prerequisites
+Before you begin, ensure you have the following software installed on your system:
+- **Node.js** (version 12.x or later)
+- **npm** (Node Package Manager, typically comes with Node.js)
+
+#### Steps to Setup and Start the Project
+
+1. **Clone the Repository**
+   Open your terminal and run the following command to clone the OptiGuide repository:
+   ```sh
+   git clone https://github.com/iamgrewal/OptiGuide.git
+   ```
+
+2. **Navigate to the Project Directory**
+   Change your directory to the newly cloned repository:
+   ```sh
+   cd OptiGuide
+   ```
+
+3. **Install Dependencies**
+   Install the necessary dependencies using npm:
+   ```sh
+   npm install
+   ```
+
+4. **Set Up Environment Variables**
+   Create a `.env` file in the root directory of the project (if there isn't one already) and add any required environment variables. Typically, this file might include database URLs, API keys, and other configuration settings. Check the project's documentation or the code for required environment variables.
+
+   Example `.env` file:
+   ```plaintext
+   DATABASE_URL=your_database_url
+   API_KEY=your_api_key
+   ```
+
+5. **Run Database Migrations (if applicable)**
+   If the project requires database setup, run the necessary migrations:
+   ```sh
+   npm run migrate
+   ```
+
+6. **Start the Application**
+   Start the application with the following command:
+   ```sh
+   npm start
+   ```
+
+7. **Access the Application**
+   Open your browser and navigate to `http://localhost:3000` (or the port specified in your project) to access the running application.
+
+#### Additional Tips
+- **Development Mode**: For development, you might want to run the project in watch mode to automatically restart the server on code changes:
+  ```sh
+  npm run dev
+  ```
+
+- **Testing**: Run tests to ensure everything is working correctly:
+  ```sh
+  npm test
+  ```
+
+- **Linting**: To maintain code quality, run linting:
+  ```sh
+  npm run lint
+  ```
+
+By following these steps, you should be able to set up the environment and start the OptiGuide project successfully. If you encounter any issues, refer to the project's documentation or README file for more specific instructions.
+
+###Example
+### Coffee Distribution Optimization Model
+
+The following code snippet sets up and solves an optimization problem using Gurobi to minimize the total cost of shipping and roasting coffee. It includes detailed comments and explanations to help understand the setup and constraints.
+
+```python
+import time
+from gurobipy import GRB, Model
+
+# Example data
+capacity_in_supplier = {'supplier1': 150, 'supplier2': 50, 'supplier3': 100}
+
+shipping_cost_from_supplier_to_roastery = {
+    ('supplier1', 'roastery1'): 5,
+    ('supplier1', 'roastery2'): 4,
+    ('supplier2', 'roastery1'): 6,
+    ('supplier2', 'roastery2'): 3,
+    ('supplier3', 'roastery1'): 2,
+    ('supplier3', 'roastery2'): 7
+}
+
+roasting_cost_light = {'roastery1': 3, 'roastery2': 5}
+roasting_cost_dark = {'roastery1': 5, 'roastery2': 6}
+
+shipping_cost_from_roastery_to_cafe = {
+    ('roastery1', 'cafe1'): 5,
+    ('roastery1', 'cafe2'): 3,
+    ('roastery1', 'cafe3'): 6,
+    ('roastery2', 'cafe1'): 4,
+    ('roastery2', 'cafe2'): 5,
+    ('roastery2', 'cafe3'): 2
+}
+
+light_coffee_needed_for_cafe = {'cafe1': 20, 'cafe2': 30, 'cafe3': 40}
+dark_coffee_needed_for_cafe = {'cafe1': 20, 'cafe2': 20, 'cafe3': 100}
+
+# Extract lists of unique cafes, roasteries, and suppliers
+cafes = list(set(i[1] for i in shipping_cost_from_roastery_to_cafe.keys()))
+roasteries = list(set(i[1] for i in shipping_cost_from_supplier_to_roastery.keys()))
+suppliers = list(set(i[0] for i in shipping_cost_from_supplier_to_roastery.keys()))
+
+# Create a new model
+model = Model("coffee_distribution")
+
+# Create variables
+x = model.addVars(shipping_cost_from_supplier_to_roastery.keys(),
+                  vtype=GRB.INTEGER,
+                  name="x")
+y_light = model.addVars(shipping_cost_from_roastery_to_cafe.keys(),
+                        vtype=GRB.INTEGER,
+                        name="y_light")
+y_dark = model.addVars(shipping_cost_from_roastery_to_cafe.keys(),
+                       vtype=GRB.INTEGER,
+                       name="y_dark")
+
+# Set objective
+model.setObjective(
+    sum(x[i] * shipping_cost_from_supplier_to_roastery[i] for i in shipping_cost_from_supplier_to_roastery.keys()) +
+    sum(roasting_cost_light[r] * y_light[r, c] + roasting_cost_dark[r] * y_dark[r, c] for r, c in shipping_cost_from_roastery_to_cafe.keys()) +
+    sum((y_light[j] + y_dark[j]) * shipping_cost_from_roastery_to_cafe[j] for j in shipping_cost_from_roastery_to_cafe.keys()), 
+    GRB.MINIMIZE
+)
+
+# Conservation of flow constraint
+for r in roasteries:
+    model.addConstr(
+        sum(x[i] for i in shipping_cost_from_supplier_to_roastery.keys() if i[1] == r) == 
+        sum(y_light[j] + y_dark[j] for j in shipping_cost_from_roastery_to_cafe.keys() if j[0] == r), 
+        f"flow_{r}"
+    )
+
+# Add supply constraints
+for s in suppliers:
+    model.addConstr(
+        sum(x[i] for i in shipping_cost_from_supplier_to_roastery.keys() if i[0] == s) <= 
+        capacity_in_supplier[s], 
+        f"supply_{s}"
+    )
+
+# Add demand constraints
+for c in cafes:
+    model.addConstr(
+        sum(y_light[j] for j in shipping_cost_from_roastery_to_cafe.keys() if j[1] == c) >= 
+        light_coffee_needed_for_cafe[c], 
+        f"light_demand_{c}"
+    )
+    model.addConstr(
+        sum(y_dark[j] for j in shipping_cost_from_roastery_to_cafe.keys() if j[1] == c) >= 
+        dark_coffee_needed_for_cafe[c], 
+        f"dark_demand_{c}"
+    )
+
+# Optimize model
+model.optimize()
+
+# Print results
+print(time.ctime())
+if model.status == GRB.OPTIMAL:
+    print(f'Optimal cost: {model.objVal}')
+else:
+    print("Not solved to optimality. Optimization status:", model.status)
+```
+
+### Explanation
+
+1. **Example Data**:
+   - `capacity_in_supplier`: Capacity of each supplier.
+   - `shipping_cost_from_supplier_to_roastery`: Shipping costs from suppliers to roasteries.
+   - `roasting_cost_light` and `roasting_cost_dark`: Roasting costs at each roastery for light and dark coffee.
+   - `shipping_cost_from_roastery_to_cafe`: Shipping costs from roasteries to cafes.
+   - `light_coffee_needed_for_cafe` and `dark_coffee_needed_for_cafe`: Coffee demand at each cafe.
+
+2. **Variable Creation**:
+   - `x`: Amount of coffee shipped from suppliers to roasteries.
+   - `y_light` and `y_dark`: Amount of light and dark coffee shipped from roasteries to cafes.
+
+3. **Objective Function**:
+   - Minimize the total cost including shipping and roasting costs.
+
+4. **Constraints**:
+   - **Conservation of Flow**: Ensures the total coffee shipped from suppliers to a roastery equals the total coffee shipped from that roastery to cafes.
+   - **Supply Constraints**: Ensures that the amount of coffee shipped from each supplier does not exceed their capacity.
+   - **Demand Constraints**: Ensures that each cafe receives at least the amount of coffee they need.
+
+5. **Optimization**:
+   - The model is optimized, and the results are printed.
+
+By following this framework, you can set up, run, and analyze the coffee distribution optimization problem. Adjust the data and constraints as needed to fit your specific scenario.
+
+
 
 ### Conclusion
 The `OptiGuide` project is structured with a clear separation of components, services, and pages, making it easy to navigate and extend. Following the setup instructions will help you get started quickly.
